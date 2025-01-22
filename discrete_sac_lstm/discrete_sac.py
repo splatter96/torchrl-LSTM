@@ -14,6 +14,7 @@ The helper functions are coded in the utils.py associated with this script.
 import time
 
 import hydra
+import omegaconf
 import numpy as np
 import torch
 import torch.cuda
@@ -24,7 +25,6 @@ from torchrl.envs.utils import ExplorationType, set_exploration_type
 
 from torchrl.record.loggers import generate_exp_name, get_logger
 from utils import (
-    dump_video,
     log_metrics,
     make_collector,
     make_environment,
@@ -55,7 +55,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
             experiment_name=exp_name,
             wandb_kwargs={
                 "mode": cfg.logger.mode,
-                "config": dict(cfg),
+                # "config": dict(cfg),
+                "config": omegaconf.OmegaConf.to_container(
+                    cfg, resolve=True, throw_on_missing=True
+                ),
                 "project": cfg.logger.project_name,
                 "group": cfg.logger.group_name,
             },
@@ -67,15 +70,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     # Create environments
     train_env, eval_env = make_environment(cfg, logger=logger)
-
-    # print(f"Trainenv {train_env}")
-    # res = train_env.reset()
-    # print(res["observation"])
-    # print(res)
-    # res = train_env.rand_step()
-    # print(f"Res {res}")
-    # print(f"Obs {res['next']['observation']}")
-    # exit(0)
 
     # Create agent
     model = make_sac_agent(cfg, train_env, eval_env, device)
@@ -125,8 +119,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
         pbar.update(tensordict.numel())
 
-        # print(f"First tensordict: {tensordict}")
-
         tensordict = tensordict.unsqueeze(0).to_tensordict()
         # print(f"First tensordict after testconvert: {tensordict}")
 
@@ -155,9 +147,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     )
                 else:
                     sampled_tensordict = sampled_tensordict.clone()
-
-                print(f"Sampled batch {sampled_tensordict}")
-                # print(f"{sampled_tensordict['step_count'][0]}")
 
                 # Compute loss
                 loss_out = loss_module(sampled_tensordict)
@@ -232,7 +221,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     auto_cast_to_device=True,
                     break_when_any_done=True,
                 )
-                eval_env.apply(dump_video)
                 eval_time = time.time() - eval_start
                 eval_reward = eval_rollout["next", "reward"].sum(-2).mean().item()
                 metrics_to_log["eval/reward"] = eval_reward

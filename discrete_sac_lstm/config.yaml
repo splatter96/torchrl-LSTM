@@ -49,8 +49,8 @@ network:
 
 # logging
 logger:
-  backend: tensorboard
-  project_name: torchrl_example_discrete_sac
+  backend: wandb
+  project_name: torchrl_example_discrete_sac_lstm
   group_name: null
   exp_name: ${env.name}_DiscreteSAC
   mode: online
