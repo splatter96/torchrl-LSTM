@@ -28,14 +28,15 @@ replay_buffer:
 # optim
 optim:
   utd_ratio: 1.0
-  gamma: 0.9
+  gamma: 0.99
   #batch_size: 256
   batch_size: 32
   #batch_size: 4
   lr: 3.0e-4
   weight_decay: 0.0
   target_update_polyak: 0.995
-  target_entropy_weight: 0.7
+  #target_entropy_weight: 0.7
+  target_entropy_weight: 0.2
   target_entropy: "auto"
   loss_function: l2
   # default is 0.98 but needs to be decreased for env
