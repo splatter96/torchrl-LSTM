@@ -234,6 +234,69 @@ def make_replay_buffer(
 # -----
 
 
+def make_sac_agent_original(cfg, train_env, eval_env, device):
+    """Make discrete SAC agent."""
+    # Define Actor Network
+    in_keys = ["observation"]
+    action_spec = train_env.action_spec
+    if train_env.batch_size:
+        action_spec = action_spec[(0,) * len(train_env.batch_size)]
+    # Define Actor Network
+    in_keys = ["observation"]
+
+    actor_net_kwargs = {
+        "num_cells": cfg.network.hidden_sizes,
+        "out_features": action_spec.shape[-1],
+        "activation_class": get_activation(cfg),
+    }
+
+    actor_net = MLP(**actor_net_kwargs)
+
+    actor_module = SafeModule(
+        module=actor_net,
+        in_keys=in_keys,
+        out_keys=["logits"],
+    )
+    actor = ProbabilisticActor(
+        spec=CompositeSpec(action=eval_env.action_spec),
+        module=actor_module,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=OneHotCategorical,
+        distribution_kwargs={},
+        default_interaction_type=InteractionType.RANDOM,
+        return_log_prob=False,
+    )
+
+    # Define Critic Network
+    qvalue_net_kwargs = {
+        "num_cells": cfg.network.hidden_sizes,
+        "out_features": action_spec.shape[-1],
+        "activation_class": get_activation(cfg),
+    }
+    qvalue_net = MLP(
+        **qvalue_net_kwargs,
+    )
+
+    qvalue = TensorDictModule(
+        in_keys=in_keys,
+        out_keys=["action_value"],
+        module=qvalue_net,
+    )
+
+    model = torch.nn.ModuleList([actor, qvalue]).to(device)
+    # init nets
+    with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
+        td = eval_env.reset()
+        td = td.to(device)
+        for net in model:
+            net(td)
+    del td
+    eval_env.close()
+
+    return model
+
+
 def make_sac_agent(cfg, train_env, eval_env, device):
     """Make discrete SAC agent."""
     # Define Actor Network

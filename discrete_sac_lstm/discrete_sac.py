@@ -32,6 +32,7 @@ from utils import (
     make_optimizer,
     make_replay_buffer,
     make_sac_agent,
+    make_sac_agent_original,
 )
 
 
@@ -72,7 +73,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     train_env, eval_env = make_environment(cfg, logger=logger)
 
     # Create agent
-    model = make_sac_agent(cfg, train_env, eval_env, device)
+    # model = make_sac_agent(cfg, train_env, eval_env, device)
+    model = make_sac_agent_original(cfg, train_env, eval_env, device)
 
     # Create TD3 loss
     loss_module, target_net_updater = make_loss_module(cfg, model)
