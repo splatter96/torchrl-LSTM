@@ -7,6 +7,8 @@ from contextlib import nullcontext
 
 import torch
 from tensordict.nn import InteractionType, TensorDictModule
+from torchrl.modules.distributions import TanhNormal
+from torchrl.envs import check_env_specs, ToTensorImage, Resize
 
 from torch import nn, optim
 from torchrl.collectors import SyncDataCollector
@@ -34,10 +36,19 @@ from torchrl.modules.distributions import OneHotCategorical
 from torchrl.modules.tensordict_module.actors import ProbabilisticActor
 from torchrl.objectives import SoftUpdate
 from torchrl.objectives.sac import DiscreteSACLoss
+from torchrl.objectives import SACLoss, SoftUpdate
 from torchrl.record import VideoRecorder
 
 from tensordict.nn import TensorDictSequential
-from torchrl.modules import LSTMModule
+from torchrl.modules import (
+    MLP,
+    ProbabilisticActor,
+    NormalParamExtractor,
+    ValueOperator,
+    ConvNet,
+    LSTMModule,
+    ActorCriticOperator,
+)
 
 from tensordict.utils import (
     NestedKey,
@@ -131,6 +142,29 @@ def apply_env_transforms(env, max_episode_steps):
     return transformed_env
 
 
+def apply_env_transforms_niklas(env, max_episode_steps):
+    transformed_env = TransformedEnv(
+        env,
+        # Compose(
+        #     # POMDP(),
+        #     StepCounter(max_steps=max_episode_steps),
+        #     InitTracker(),
+        #     DoubleToFloat(),
+        #     RewardSum(),
+        # ),
+        Compose(
+            ToTensorImage(),
+            InitTracker(),
+            StepCounter(),
+            Resize(
+                64, 64
+            ),  # I cannot get this to work on the HPC, as torchvision is not working properly
+            RewardSum(),
+        ),
+    )
+    return transformed_env
+
+
 def make_environment(cfg, logger=None):
     """Make environments for training and evaluation."""
     device = cfg.collector.device
@@ -149,6 +183,35 @@ def make_environment(cfg, logger=None):
 
     eval_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
     eval_env = apply_env_transforms(
+        eval_env, max_episode_steps=cfg.env.max_episode_steps
+    )
+
+    if cfg.logger.video:
+        eval_env = eval_env.insert_transform(
+            0, VideoRecorder(logger, tag="rendered", in_keys=["pixels"])
+        )
+    return train_env, eval_env
+
+
+def make_environment_niklas(cfg, logger=None):
+    """Make environments for training and evaluation."""
+    device = cfg.collector.device
+    if device in ("", None):
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
+
+    # train_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    train_env = TransformedEnv(GymEnv("Pendulum-v1", from_pixels=True, device=device))
+    train_env.set_seed(cfg.env.seed)
+
+    train_env = apply_env_transforms_niklas(
+        train_env, max_episode_steps=cfg.env.max_episode_steps
+    )
+
+    eval_env = TransformedEnv(GymEnv("Pendulum-v1", from_pixels=True, device=device))
+    eval_env = apply_env_transforms_niklas(
         eval_env, max_episode_steps=cfg.env.max_episode_steps
     )
 
@@ -498,6 +561,118 @@ def make_sac_agent(cfg, train_env, eval_env, device):
     return model
 
 
+def make_sac_agent_niklas(cfg, train_env, eval_env, device):
+    # Networks
+    conv = ConvNet(
+        in_features=3,
+        num_cells=[32, 64, 256],
+        squeeze_output=True,
+        aggregator_class=nn.AdaptiveAvgPool2d,
+        aggregator_kwargs={"output_size": (1, 1)},
+        device=device,
+    )
+    conv_mod = TensorDictModule(conv, in_keys=["pixels"], out_keys=["embedding"])
+
+    # Get the number of cells in the last layer
+    n_cells = conv_mod(train_env.reset().to(device))["embedding"].shape[-1]
+
+    lstm = LSTMModule(
+        input_size=n_cells,
+        hidden_size=256,
+        device=device,
+        in_key="embedding",
+        out_key="embedding",
+        python_based=True,
+    )
+
+    # Common feature extractor
+    feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
+
+    actor_seq = nn.Sequential(
+        nn.Linear(n_cells, 256),
+        nn.ReLU(),
+        nn.Linear(256, 64),
+        nn.ReLU(),
+        nn.Linear(64, train_env.action_spec.shape[-1] * 2),
+        NormalParamExtractor(),
+    ).to(device)
+
+    actor_module = TensorDictModule(
+        actor_seq, in_keys=["embedding"], out_keys=["loc", "scale"]
+    )
+
+    actor = ProbabilisticActor(
+        actor_module,
+        in_keys=["loc", "scale"],
+        out_keys=["action"],
+        distribution_class=TanhNormal,
+    )
+
+    class ValueMLP(nn.Module):
+        def __init__(self, hidden_dim=64):
+            """
+            Initialize the ValueMLP network.
+
+            Args:
+                input_dim (int): Number of input features. Defaults to 3, i.e., 2+1.
+                hidden_dim (int): Number of neurons in the hidden layers. Defaults to 64.
+            """
+            super(ValueMLP, self).__init__()
+            self.fc1 = nn.LazyLinear(hidden_dim)
+            self.relu1 = nn.ReLU()
+            self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+            self.relu2 = nn.ReLU()
+            self.fc3 = nn.Linear(hidden_dim, 1)
+
+        def forward(self, x, action):
+            """
+            Forward pass of the network.
+
+            Args:
+                x (torch.Tensor): Input tensor.
+
+            Returns:
+                torch.Tensor: Output tensor.
+            """
+            x = torch.cat([x, action], dim=-1)
+            x = self.relu1(self.fc1(x))
+            x = self.relu2(self.fc2(x))
+            x = self.fc3(x)
+            return x
+
+    qvalue = ValueOperator(
+        ValueMLP().to(device),
+        in_keys=["embedding", "action"],
+        out_keys=["state_action_value"],
+    )
+
+    ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
+    ac_operator.get_critic_operator()(train_env.reset().to(device))
+
+    # Make policy aware of supplementary inputs and
+    # outputs during rollout execution.
+    train_env.append_transform(lstm.make_tensordict_primer())
+    eval_env.append_transform(lstm.make_tensordict_primer())
+
+    # Combine modules to actor critic model
+    model = torch.nn.ModuleList(
+        [ac_operator.get_policy_operator(), ac_operator.get_critic_operator()]
+    ).to(device)
+    # init nets
+    print("initializing net")
+    with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
+        td = train_env.reset()
+        td = td.to(device)
+        print(td)
+        for net in model:
+            net(td)
+    del td
+    eval_env.close()
+    print("done initializing net")
+
+    return model
+
+
 # ====================================================================
 # Discrete SAC Loss
 # ---------
@@ -520,6 +695,22 @@ def make_loss_module(cfg, model):
     # Define Target Network Updater
     target_net_updater = SoftUpdate(loss_module, eps=cfg.optim.target_update_polyak)
     return loss_module, target_net_updater
+
+
+def make_loss_module_niklas(cfg, model):
+    loss = SACLoss(
+        # actor_network=model[0].get_policy_operator(),
+        # qvalue_network=model[1].get_critic_operator(),
+        actor_network=model[0],
+        qvalue_network=model[1],
+        loss_function="l2",
+        target_entropy=0.7,
+    )
+
+    # Set update rule for the target network
+    updater = SoftUpdate(loss, eps=0.99)
+
+    return loss, updater
 
 
 def make_optimizer(cfg, loss_module):

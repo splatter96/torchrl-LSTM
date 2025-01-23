@@ -28,11 +28,14 @@ from utils import (
     log_metrics,
     make_collector,
     make_environment,
+    make_environment_niklas,
     make_loss_module,
+    make_loss_module_niklas,
     make_optimizer,
     make_replay_buffer,
     make_sac_agent,
     make_sac_agent_original,
+    make_sac_agent_niklas,
 )
 
 
@@ -70,14 +73,17 @@ def main(cfg: "DictConfig"):  # noqa: F821
     np.random.seed(cfg.env.seed)
 
     # Create environments
-    train_env, eval_env = make_environment(cfg, logger=logger)
+    # train_env, eval_env = make_environment(cfg, logger=logger)
+    train_env, eval_env = make_environment_niklas(cfg, logger=logger)
 
     # Create agent
     # model = make_sac_agent(cfg, train_env, eval_env, device)
-    model = make_sac_agent_original(cfg, train_env, eval_env, device)
+    # model = make_sac_agent_original(cfg, train_env, eval_env, device)
+    model = make_sac_agent_niklas(cfg, train_env, eval_env, device)
 
     # Create TD3 loss
-    loss_module, target_net_updater = make_loss_module(cfg, model)
+    # loss_module, target_net_updater = make_loss_module(cfg, model)
+    loss_module, target_net_updater = make_loss_module_niklas(cfg, model)
 
     # Create off-policy collector
     collector = make_collector(cfg, train_env, model[0])
