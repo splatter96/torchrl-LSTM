@@ -145,13 +145,22 @@ def apply_env_transforms(env, max_episode_steps):
 def apply_env_transforms_niklas(env, max_episode_steps):
     transformed_env = TransformedEnv(
         env,
-        # Compose(
-        #     # POMDP(),
-        #     StepCounter(max_steps=max_episode_steps),
-        #     InitTracker(),
-        #     DoubleToFloat(),
-        #     RewardSum(),
-        # ),
+        Compose(
+            ToTensorImage(),
+            InitTracker(),
+            StepCounter(),
+            Resize(
+                64, 64
+            ),  # I cannot get this to work on the HPC, as torchvision is not working properly
+            RewardSum(),
+        ),
+    )
+    return transformed_env
+
+
+def apply_env_transforms_new(env, max_episode_steps):
+    transformed_env = TransformedEnv(
+        env,
         Compose(
             ToTensorImage(),
             InitTracker(),
@@ -212,6 +221,34 @@ def make_environment_niklas(cfg, logger=None):
 
     eval_env = TransformedEnv(GymEnv("Pendulum-v1", from_pixels=True, device=device))
     eval_env = apply_env_transforms_niklas(
+        eval_env, max_episode_steps=cfg.env.max_episode_steps
+    )
+
+    if cfg.logger.video:
+        eval_env = eval_env.insert_transform(
+            0, VideoRecorder(logger, tag="rendered", in_keys=["pixels"])
+        )
+    return train_env, eval_env
+
+
+def make_environment_new(cfg, logger=None):
+    """Make environments for training and evaluation."""
+    device = cfg.collector.device
+    if device in ("", None):
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
+
+    train_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=True, device=device))
+    train_env.set_seed(cfg.env.seed)
+
+    train_env = apply_env_transforms_new(
+        train_env, max_episode_steps=cfg.env.max_episode_steps
+    )
+
+    eval_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=True, device=device))
+    eval_env = apply_env_transforms_new(
         eval_env, max_episode_steps=cfg.env.max_episode_steps
     )
 

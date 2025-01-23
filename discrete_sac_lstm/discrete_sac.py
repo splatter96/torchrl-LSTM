@@ -29,6 +29,7 @@ from utils import (
     make_collector,
     make_environment,
     make_environment_niklas,
+    make_environment_new,
     make_loss_module,
     make_loss_module_niklas,
     make_optimizer,
@@ -74,7 +75,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     # Create environments
     # train_env, eval_env = make_environment(cfg, logger=logger)
-    train_env, eval_env = make_environment_niklas(cfg, logger=logger)
+    # train_env, eval_env = make_environment_niklas(cfg, logger=logger)
+    train_env, eval_env = make_environment_new(cfg, logger=logger)
 
     # Create agent
     # model = make_sac_agent(cfg, train_env, eval_env, device)
