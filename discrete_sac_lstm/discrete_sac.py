@@ -37,6 +37,7 @@ from utils import (
     make_sac_agent,
     make_sac_agent_original,
     make_sac_agent_niklas,
+    make_sac_agent_new,
 )
 
 
@@ -81,11 +82,12 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # Create agent
     # model = make_sac_agent(cfg, train_env, eval_env, device)
     # model = make_sac_agent_original(cfg, train_env, eval_env, device)
-    model = make_sac_agent_niklas(cfg, train_env, eval_env, device)
+    # model = make_sac_agent_niklas(cfg, train_env, eval_env, device)
+    model = make_sac_agent_new(cfg, train_env, eval_env, device)
 
     # Create TD3 loss
-    # loss_module, target_net_updater = make_loss_module(cfg, model)
-    loss_module, target_net_updater = make_loss_module_niklas(cfg, model)
+    loss_module, target_net_updater = make_loss_module(cfg, model)
+    # loss_module, target_net_updater = make_loss_module_niklas(cfg, model)
 
     # Create off-policy collector
     collector = make_collector(cfg, train_env, model[0])
