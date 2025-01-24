@@ -48,6 +48,7 @@ from torchrl.modules import (
     ConvNet,
     LSTMModule,
     ActorCriticOperator,
+    ActorValueOperator,
 )
 
 from tensordict.utils import (
@@ -799,7 +800,8 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
             # self.fc3 = nn.Linear(hidden_dim, 1)
             self.fc3 = nn.Linear(hidden_dim, train_env.action_spec.shape[-1])
 
-        def forward(self, x, action):
+        # def forward(self, x, action):
+        def forward(self, x):
             """
             Forward pass of the network.
 
@@ -809,7 +811,7 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
             Returns:
                 torch.Tensor: Output tensor.
             """
-            x = torch.cat([x, action], dim=-1)
+            # x = torch.cat([x, action], dim=-1)
             x = self.relu1(self.fc1(x))
             x = self.relu2(self.fc2(x))
             x = self.fc3(x)
@@ -817,13 +819,16 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 
     qvalue = ValueOperator(
         ValueMLP().to(device),
-        in_keys=["embedding", "action"],
+        # in_keys=["embedding", "action"],
+        in_keys=["embedding"],
         # out_keys=["state_action_value"],
         out_keys=["action_value"],
     )
 
-    ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
-    ac_operator.get_critic_operator()(train_env.reset().to(device))
+    # ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
+    ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
+    # ac_operator.get_critic_operator()(train_env.reset().to(device))
+    ac_operator.get_value_operator()(train_env.reset().to(device))
 
     # Make policy aware of supplementary inputs and
     # outputs during rollout execution.
@@ -832,7 +837,8 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 
     # Combine modules to actor critic model
     model = torch.nn.ModuleList(
-        [ac_operator.get_policy_operator(), ac_operator.get_critic_operator()]
+        # [ac_operator.get_policy_operator(), ac_operator.get_critic_operator()]
+        [ac_operator.get_policy_operator(), ac_operator.get_value_operator()]
     ).to(device)
     # init nets
     print("initializing net")
@@ -867,7 +873,8 @@ def make_loss_module(cfg, model):
         num_actions=model[0].spec["action"].space.n,
         num_qvalue_nets=2,
         loss_function=cfg.optim.loss_function,
-        target_entropy_weight=cfg.optim.target_entropy_weight,
+        # target_entropy_weight=cfg.optim.target_entropy_weight,
+        target_entropy=cfg.optim.target_entropy,
         delay_qvalue=True,
     )
     loss_module.make_value_estimator(gamma=cfg.optim.gamma)
