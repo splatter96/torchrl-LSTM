@@ -50,6 +50,7 @@ from torchrl.modules import (
     LSTMModule,
     ActorCriticOperator,
     ActorValueOperator,
+    ActorCriticWrapper,
 )
 
 from tensordict.utils import (
@@ -735,7 +736,7 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         device=device,
         activation_class=get_activation(cfg),
     )
-    #mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
+    # mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
     mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
 
     # Get the number of cells in the last layer
@@ -781,8 +782,8 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     #
     actor_module = TensorDictModule(
         # actor_seq, in_keys=["embedding"], out_keys=["loc", "scale"]
-        actor_seq,
-        in_keys=["embedding"],
+        mlp,
+        in_keys=["observation"],
         out_keys=["logits"],
     )
 
@@ -804,47 +805,47 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         return_log_prob=False,
     )
 
-    #class ValueMLP(nn.Module):
-        #def __init__(self, hidden_dim=64):
-            #"""
-            #Initialize the ValueMLP network.
-#
-            #Args:
-                #input_dim (int): Number of input features. Defaults to 3, i.e., 2+1.
-                #hidden_dim (int): Number of neurons in the hidden layers. Defaults to 64.
-            #"""
-            #super(ValueMLP, self).__init__()
-            ##self.fc1 = nn.LazyLinear(hidden_dim)
-            ##self.relu1 = nn.ReLU()
-            #self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-            #self.relu2 = nn.ReLU()
-            ## self.fc3 = nn.Linear(hidden_dim, 1)
-            #self.fc3 = nn.Linear(hidden_dim, train_env.action_spec.shape[-1])
+    # class ValueMLP(nn.Module):
+    # def __init__(self, hidden_dim=64):
+    # """
+    # Initialize the ValueMLP network.
+    #
+    # Args:
+    # input_dim (int): Number of input features. Defaults to 3, i.e., 2+1.
+    # hidden_dim (int): Number of neurons in the hidden layers. Defaults to 64.
+    # """
+    # super(ValueMLP, self).__init__()
+    ##self.fc1 = nn.LazyLinear(hidden_dim)
+    ##self.relu1 = nn.ReLU()
+    # self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+    # self.relu2 = nn.ReLU()
+    ## self.fc3 = nn.Linear(hidden_dim, 1)
+    # self.fc3 = nn.Linear(hidden_dim, train_env.action_spec.shape[-1])
 
-        ## def forward(self, x, action):
-        #def forward(self, x):
-            #"""
-            #Forward pass of the network.
-#
-            #Args:
-                #x (torch.Tensor): Input tensor.
-#
-            #Returns:
-                #torch.Tensor: Output tensor.
-            #"""
-            ## x = torch.cat([x, action], dim=-1)
-            ##x = self.relu1(self.fc1(x))
-            #x = self.relu2(self.fc2(x))
-            #x = self.fc3(x)
-            #return x
+    ## def forward(self, x, action):
+    # def forward(self, x):
+    # """
+    # Forward pass of the network.
+    #
+    # Args:
+    # x (torch.Tensor): Input tensor.
+    #
+    # Returns:
+    # torch.Tensor: Output tensor.
+    # """
+    ## x = torch.cat([x, action], dim=-1)
+    ##x = self.relu1(self.fc1(x))
+    # x = self.relu2(self.fc2(x))
+    # x = self.fc3(x)
+    # return x
 
-    #qvalue = ValueOperator(
-        #ValueMLP().to(device),
-        ## in_keys=["embedding", "action"],
-        #in_keys=["embedding"],
-        ## out_keys=["state_action_value"],
-        #out_keys=["action_value"],
-    #)
+    # qvalue = ValueOperator(
+    # ValueMLP().to(device),
+    ## in_keys=["embedding", "action"],
+    # in_keys=["embedding"],
+    ## out_keys=["state_action_value"],
+    # out_keys=["action_value"],
+    # )
 
     qvalue_net_kwargs = {
         "num_cells": cfg.network.hidden_sizes,
@@ -856,14 +857,14 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     )
 
     qvalue = TensorDictModule(
-        in_keys=["embedding"],
+        in_keys=["observation"],
         out_keys=["action_value"],
         module=qvalue_net.to(device),
     )
 
-
     # ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
-    ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
+    # ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
+    ac_operator = ActorCriticWrapper(actor, qvalue)
     # ac_operator.get_critic_operator()(train_env.reset().to(device))
     ac_operator.get_value_operator()(train_env.reset().to(device))
 
