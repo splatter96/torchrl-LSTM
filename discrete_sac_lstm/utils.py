@@ -750,8 +750,10 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 
     # Common feature extractor
     # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
-    feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
-    print(feature_extractor)
+    # feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+
+    # Non LSTM
+    feature_extractor = TensorDictSequential(mlp_mod)
 
     # TODO replace with MLP??
     # actor_seq = nn.Sequential(
@@ -857,20 +859,18 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         [ac_operator.get_policy_operator(), ac_operator.get_value_operator()]
     ).to(device)
     # init nets
-    print("initializing net")
     with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
         td = train_env.reset()
         td = td.to(device)
         # print(td)
         for net in model:
             res = net(td)
-            print(f"After net {res}")
-            print(f"action {res['action']}")
-            if "state_action_value" in res:
-                print(f"action {res['state_action_value']}")
+            # print(f"After net {res}")
+            # print(f"action {res['action']}")
+            # if "state_action_value" in res:
+            #     print(f"action {res['state_action_value']}")
     del td
     eval_env.close()
-    print("done initializing net")
 
     return model
 
