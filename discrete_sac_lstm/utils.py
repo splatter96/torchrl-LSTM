@@ -7,6 +7,7 @@ from contextlib import nullcontext
 
 import torch
 from tensordict.nn import InteractionType, TensorDictModule
+from torch._prims_common import get_acc_type
 from torchrl.modules.distributions import TanhNormal
 from torchrl.envs import check_env_specs, ToTensorImage, Resize
 
@@ -732,6 +733,7 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         num_cells=cfg.network.hidden_sizes,
         out_features=action_spec.shape[-1],
         device=device,
+        activation_class=get_activation(cfg),
     )
     mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
 
