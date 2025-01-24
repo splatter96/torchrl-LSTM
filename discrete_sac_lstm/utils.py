@@ -735,6 +735,7 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         device=device,
         activation_class=get_activation(cfg),
     )
+    #mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
     mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
 
     # Get the number of cells in the last layer
@@ -803,47 +804,63 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         return_log_prob=False,
     )
 
-    class ValueMLP(nn.Module):
-        def __init__(self, hidden_dim=64):
-            """
-            Initialize the ValueMLP network.
+    #class ValueMLP(nn.Module):
+        #def __init__(self, hidden_dim=64):
+            #"""
+            #Initialize the ValueMLP network.
+#
+            #Args:
+                #input_dim (int): Number of input features. Defaults to 3, i.e., 2+1.
+                #hidden_dim (int): Number of neurons in the hidden layers. Defaults to 64.
+            #"""
+            #super(ValueMLP, self).__init__()
+            ##self.fc1 = nn.LazyLinear(hidden_dim)
+            ##self.relu1 = nn.ReLU()
+            #self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+            #self.relu2 = nn.ReLU()
+            ## self.fc3 = nn.Linear(hidden_dim, 1)
+            #self.fc3 = nn.Linear(hidden_dim, train_env.action_spec.shape[-1])
 
-            Args:
-                input_dim (int): Number of input features. Defaults to 3, i.e., 2+1.
-                hidden_dim (int): Number of neurons in the hidden layers. Defaults to 64.
-            """
-            super(ValueMLP, self).__init__()
-            self.fc1 = nn.LazyLinear(hidden_dim)
-            self.relu1 = nn.ReLU()
-            self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-            self.relu2 = nn.ReLU()
-            # self.fc3 = nn.Linear(hidden_dim, 1)
-            self.fc3 = nn.Linear(hidden_dim, train_env.action_spec.shape[-1])
+        ## def forward(self, x, action):
+        #def forward(self, x):
+            #"""
+            #Forward pass of the network.
+#
+            #Args:
+                #x (torch.Tensor): Input tensor.
+#
+            #Returns:
+                #torch.Tensor: Output tensor.
+            #"""
+            ## x = torch.cat([x, action], dim=-1)
+            ##x = self.relu1(self.fc1(x))
+            #x = self.relu2(self.fc2(x))
+            #x = self.fc3(x)
+            #return x
 
-        # def forward(self, x, action):
-        def forward(self, x):
-            """
-            Forward pass of the network.
+    #qvalue = ValueOperator(
+        #ValueMLP().to(device),
+        ## in_keys=["embedding", "action"],
+        #in_keys=["embedding"],
+        ## out_keys=["state_action_value"],
+        #out_keys=["action_value"],
+    #)
 
-            Args:
-                x (torch.Tensor): Input tensor.
-
-            Returns:
-                torch.Tensor: Output tensor.
-            """
-            # x = torch.cat([x, action], dim=-1)
-            x = self.relu1(self.fc1(x))
-            x = self.relu2(self.fc2(x))
-            x = self.fc3(x)
-            return x
-
-    qvalue = ValueOperator(
-        ValueMLP().to(device),
-        # in_keys=["embedding", "action"],
-        in_keys=["embedding"],
-        # out_keys=["state_action_value"],
-        out_keys=["action_value"],
+    qvalue_net_kwargs = {
+        "num_cells": cfg.network.hidden_sizes,
+        "out_features": action_spec.shape[-1],
+        "activation_class": get_activation(cfg),
+    }
+    qvalue_net = MLP(
+        **qvalue_net_kwargs,
     )
+
+    qvalue = TensorDictModule(
+        in_keys=["embedding"],
+        out_keys=["action_value"],
+        module=qvalue_net.to(device),
+    )
+
 
     # ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
     ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
@@ -891,7 +908,7 @@ def make_loss_module(cfg, model):
         num_actions=model[0].spec["action"].space.n,
         num_qvalue_nets=2,
         loss_function=cfg.optim.loss_function,
-        # target_entropy_weight=cfg.optim.target_entropy_weight,
+        target_entropy_weight=cfg.optim.target_entropy_weight,
         target_entropy=cfg.optim.target_entropy,
         delay_qvalue=True,
     )

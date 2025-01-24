@@ -10,7 +10,6 @@ It supports gym state environments like CartPole.
 
 The helper functions are coded in the utils.py associated with this script.
 """
-
 import time
 
 import hydra
@@ -61,7 +60,6 @@ def main(cfg: "DictConfig"):  # noqa: F821
             experiment_name=exp_name,
             wandb_kwargs={
                 "mode": cfg.logger.mode,
-                # "config": dict(cfg),
                 "config": omegaconf.OmegaConf.to_container(
                     cfg, resolve=True, throw_on_missing=True
                 ),
@@ -80,8 +78,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # train_env, eval_env = make_environment_new(cfg, logger=logger)
 
     # Create agent
-    # model = make_sac_agent(cfg, train_env, eval_env, device)
-    # model = make_sac_agent_original(cfg, train_env, eval_env, device)
+    #model = make_sac_agent(cfg, train_env, eval_env, device)
+    #model = make_sac_agent_original(cfg, train_env, eval_env, device)
     # model = make_sac_agent_niklas(cfg, train_env, eval_env, device)
     model = make_sac_agent_new(cfg, train_env, eval_env, device)
 
@@ -132,11 +130,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         pbar.update(tensordict.numel())
 
         tensordict = tensordict.unsqueeze(0).to_tensordict()
-        # print(f"First tensordict after testconvert: {tensordict}")
-
-        # tensordict = tensordict.reshape(-1)
-        # print(f"First tensordict after reshape: {tensordict}")
-
+        #tensordict = tensordict.reshape(-1)
         current_frames = tensordict.numel()
         # Add to replay buffer
         replay_buffer.extend(tensordict.cpu())
