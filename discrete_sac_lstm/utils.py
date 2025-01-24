@@ -714,18 +714,26 @@ def make_sac_agent_niklas(cfg, train_env, eval_env, device):
 
 def make_sac_agent_new(cfg, train_env, eval_env, device):
     # Networks
-    conv = ConvNet(
-        in_features=3,
-        num_cells=[32, 64, 256],  # TODO make parameters
-        squeeze_output=True,
-        aggregator_class=nn.AdaptiveAvgPool2d,
-        aggregator_kwargs={"output_size": (1, 1)},
-        device=device,
-    )
-    conv_mod = TensorDictModule(conv, in_keys=["pixels"], out_keys=["embedding"])
+    # conv = ConvNet(
+    #     in_features=3,
+    #     num_cells=[32, 64, 256],  # TODO make parameters
+    #     squeeze_output=True,
+    #     aggregator_class=nn.AdaptiveAvgPool2d,
+    #     aggregator_kwargs={"output_size": (1, 1)},
+    #     device=device,
+    # )
+    # conv_mod = TensorDictModule(conv, in_keys=["pixels"], out_keys=["embedding"])
+    #
+    action_spec = train_env.action_spec
+    if train_env.batch_size:
+        action_spec = action_spec[(0,) * len(train_env.batch_size)]
+
+    mlp = MLP(num_cells=cfg.network.hidden_sizes, out_features=action_spec.shape[-1])
+    mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
 
     # Get the number of cells in the last layer
-    n_cells = conv_mod(train_env.reset().to(device))["embedding"].shape[-1]
+    # n_cells = conv_mod(train_env.reset().to(device))["embedding"].shape[-1]
+    n_cells = mlp_mod(train_env.reset().to(device))["embedding"].shape[-1]
 
     lstm = LSTMModule(
         input_size=n_cells,
@@ -737,18 +745,22 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     )
 
     # Common feature extractor
-    feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
+    # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
+    feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+    print(feature_extractor)
 
     # TODO replace with MLP??
-    actor_seq = nn.Sequential(
-        nn.Linear(n_cells, 256),
-        nn.ReLU(),
-        nn.Linear(256, 64),
-        nn.ReLU(),
-        # nn.Linear(64, train_env.action_spec.shape[-1] * 2),
-        nn.Linear(64, train_env.action_spec.shape[-1]),
-        # NormalParamExtractor(),
-    ).to(device)
+    # actor_seq = nn.Sequential(
+    #     nn.Linear(n_cells, 256),
+    #     nn.ReLU(),
+    #     nn.Linear(256, 64),
+    #     nn.ReLU(),
+    #     # nn.Linear(64, train_env.action_spec.shape[-1] * 2),
+    #     nn.Linear(64, train_env.action_spec.shape[-1]),
+    #     # NormalParamExtractor(),
+    # ).to(device)
+    #
+    actor_seq = MLP(out_features=2, num_cells=[64], device=device)
 
     # actor_net_kwargs = {
     #     "num_cells": cfg.network.hidden_sizes,

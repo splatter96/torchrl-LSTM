@@ -75,9 +75,9 @@ def main(cfg: "DictConfig"):  # noqa: F821
     np.random.seed(cfg.env.seed)
 
     # Create environments
-    # train_env, eval_env = make_environment(cfg, logger=logger)
+    train_env, eval_env = make_environment(cfg, logger=logger)
     # train_env, eval_env = make_environment_niklas(cfg, logger=logger)
-    train_env, eval_env = make_environment_new(cfg, logger=logger)
+    # train_env, eval_env = make_environment_new(cfg, logger=logger)
 
     # Create agent
     # model = make_sac_agent(cfg, train_env, eval_env, device)
