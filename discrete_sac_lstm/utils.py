@@ -770,7 +770,12 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     #     # NormalParamExtractor(),
     # ).to(device)
     #
-    actor_seq = MLP(out_features=2, num_cells=[64], device=device)
+    actor_seq = MLP(
+        # out_features=2, num_cells=[64], device=device,
+        num_cells=cfg.network.hidden_sizes,
+        out_features=action_spec.shape[-1],
+        device=device,
+    )
 
     # actor_net_kwargs = {
     #     "num_cells": cfg.network.hidden_sizes,
@@ -782,8 +787,8 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     #
     actor_module = TensorDictModule(
         # actor_seq, in_keys=["embedding"], out_keys=["loc", "scale"]
-        mlp,
-        in_keys=["observation"],
+        actor_seq,
+        in_keys=["embedding"],
         out_keys=["logits"],
     )
 
@@ -857,14 +862,14 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     )
 
     qvalue = TensorDictModule(
-        in_keys=["observation"],
+        in_keys=["embedding"],
         out_keys=["action_value"],
         module=qvalue_net.to(device),
     )
 
     # ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
-    # ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
-    ac_operator = ActorCriticWrapper(actor, qvalue)
+    ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
+    # ac_operator = ActorCriticWrapper(actor, qvalue)
     # ac_operator.get_critic_operator()(train_env.reset().to(device))
     ac_operator.get_value_operator()(train_env.reset().to(device))
 
