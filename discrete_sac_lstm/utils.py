@@ -728,7 +728,11 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
 
-    mlp = MLP(num_cells=cfg.network.hidden_sizes, out_features=action_spec.shape[-1])
+    mlp = MLP(
+        num_cells=cfg.network.hidden_sizes,
+        out_features=action_spec.shape[-1],
+        device=device,
+    )
     mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
 
     # Get the number of cells in the last layer
