@@ -135,7 +135,7 @@ def apply_env_transforms(env, max_episode_steps):
     transformed_env = TransformedEnv(
         env,
         Compose(
-            # POMDP(),
+            POMDP(),
             StepCounter(max_steps=max_episode_steps),
             InitTracker(),
             DoubleToFloat(),
@@ -754,10 +754,10 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 
     # Common feature extractor
     # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
-    # feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+    feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
 
     # Non LSTM
-    feature_extractor = TensorDictSequential(mlp_mod)
+    #feature_extractor = TensorDictSequential(mlp_mod)
 
     # TODO replace with MLP??
     # actor_seq = nn.Sequential(
