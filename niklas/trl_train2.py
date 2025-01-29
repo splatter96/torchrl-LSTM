@@ -232,6 +232,11 @@ for i, data in enumerate(collector):
         average_step_count = avg_length.type(torch.float).mean().item()
         sample = memory.sample(128)
 
+        print(sample)
+        print(sample["step_count"])
+        print(sample["is_init"])
+        exit(0)
+
         _ = loss.select_out_keys("loss_actor", "loss_qvalue", "loss_alpha")
         losses = loss(sample.to(device))
         tot_loss = losses["loss_actor"] + losses["loss_qvalue"] + losses["loss_alpha"]
