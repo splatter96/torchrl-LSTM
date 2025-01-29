@@ -193,7 +193,7 @@ def make_environment(cfg, logger=None):
     import highway_env
 
     # train_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
-    pure_env = gym.make("merge-single-agent-v0")
+    pure_env = gym.make(cfg.env.name)
     pure_env.config.update(cfg.env.config)
     train_env = TransformedEnv(GymWrapper(pure_env, from_pixels=False, device=device))
     train_env.set_seed(cfg.env.seed)
@@ -203,7 +203,7 @@ def make_environment(cfg, logger=None):
     )
 
     # eval_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
-    pure_env = gym.make("merge-single-agent-v0")
+    pure_env = gym.make(cfg.env.name)
     pure_env.config.update(cfg.env.config)
     eval_env = TransformedEnv(GymWrapper(pure_env, from_pixels=False, device=device))
     eval_env = apply_env_transforms(

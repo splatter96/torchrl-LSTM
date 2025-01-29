@@ -1,7 +1,7 @@
 
 # task and env
 env:
-  name: CartPole-v1
+  name: merge-single-agent-v0
   task: ""
   library: gym
   seed: 42

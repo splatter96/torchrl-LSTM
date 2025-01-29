@@ -40,6 +40,14 @@ from utils import (
     make_sac_agent_new,
 )
 
+import datetime
+import dateutil
+
+
+def now_str():
+    now = datetime.datetime.now(dateutil.tz.tzlocal())
+    return now.strftime("%m-%d:%H-%M:%S.%f")[:-4]
+
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg: "DictConfig"):  # noqa: F821
@@ -232,6 +240,13 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 eval_reward = eval_rollout["next", "reward"].sum(-2).mean().item()
                 metrics_to_log["eval/reward"] = eval_reward
                 metrics_to_log["eval/time"] = eval_time
+
+                # save and upload model
+                save_path = f"agent_{i}_{now_str()}"
+                torch.save(model[0].state_dict(), save_path)
+                artifact = wandb.Artifact(f"agent_{i}", type="model")
+                artifact.add_file(save_path)
+                wandb.run.log_artifact(artifact, type="model")
         if logger is not None:
             log_metrics(logger, metrics_to_log, collected_frames)
         sampling_start = time.time()
