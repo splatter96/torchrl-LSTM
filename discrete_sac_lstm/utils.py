@@ -2,6 +2,7 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+import sys
 import tempfile
 from contextlib import nullcontext
 
@@ -29,7 +30,7 @@ from torchrl.envs import (
     TransformedEnv,
     ObservationTransform,
 )
-from torchrl.envs.libs.gym import GymEnv, set_gym_backend
+from torchrl.envs.libs.gym import GymEnv, GymWrapper, set_gym_backend
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, SafeModule
 from torchrl.modules.distributions import OneHotCategorical
@@ -71,6 +72,9 @@ from copy import copy
 
 from torchrl.data.tensor_specs import ContinuousBox
 
+import gymnasium as gym
+
+sys.path.append("./highway-env/")
 
 # ====================================================================
 # Environment utils
@@ -186,14 +190,22 @@ def make_environment(cfg, logger=None):
         else:
             device = "cpu"
 
-    train_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    import highway_env
+
+    # train_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    pure_env = gym.make("merge-single-agent-v0")
+    pure_env.config.update(cfg.env.config)
+    train_env = TransformedEnv(GymWrapper(pure_env, from_pixels=False, device=device))
     train_env.set_seed(cfg.env.seed)
 
     train_env = apply_env_transforms(
         train_env, max_episode_steps=cfg.env.max_episode_steps
     )
 
-    eval_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    # eval_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    pure_env = gym.make("merge-single-agent-v0")
+    pure_env.config.update(cfg.env.config)
+    eval_env = TransformedEnv(GymWrapper(pure_env, from_pixels=False, device=device))
     eval_env = apply_env_transforms(
         eval_env, max_episode_steps=cfg.env.max_episode_steps
     )
@@ -867,11 +879,18 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         module=qvalue_net.to(device),
     )
 
+    # compile the nn modules
+    actor_compile = torch.compile(actor)
+    qvalue_compile = torch.compile(qvalue)
+    feature_extractor_compile = torch.compile(feature_extractor)
+
     # ac_operator = ActorCriticOperator(feature_extractor, actor, qvalue)
     ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
     # ac_operator = ActorCriticWrapper(actor, qvalue)
     # ac_operator.get_critic_operator()(train_env.reset().to(device))
     ac_operator.get_value_operator()(train_env.reset().to(device))
+
+    # ac_operator.compile()
 
     # Make policy aware of supplementary inputs and
     # outputs during rollout execution.
