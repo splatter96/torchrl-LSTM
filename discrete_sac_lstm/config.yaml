@@ -39,10 +39,10 @@ replay_buffer:
 
 # optim
 optim:
-  utd_ratio: 1.0
+  utd_ratio: 16.0
   gamma: 0.99
   batch_size: 16
-  lr: 3.0e-4
+  lr: 5.0e-4
   weight_decay: 0.0
   target_update_polyak: 0.995
   target_entropy_weight: 0.2
@@ -60,7 +60,7 @@ network:
 # logging
 logger:
   backend: wandb
-  project_name: torchrl_example_discrete_sac_lstm
+  project_name: torchrl_highwayenv
   group_name: null
   exp_name: ${env.name}_DiscreteSAC
   mode: online

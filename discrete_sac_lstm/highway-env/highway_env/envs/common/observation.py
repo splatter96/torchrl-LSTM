@@ -579,7 +579,7 @@ class LidarObservation(ObservationType):
                 #"ego": spaces.Box(shape=(4,), low=-1, high=1),
             #}
         #)
-        return spaces.Box(shape=(self.cells+2, 2), low=-high, high=high, dtype=np.float32)
+        return spaces.Box(shape=(2*(self.cells+2), ), low=-high, high=high, dtype=np.float32)
 
     def observe(self):
         self.grid = utils.trace(
@@ -765,7 +765,7 @@ class LidarObservation(ObservationType):
         ego_pos = np.reshape(ego_pos, (2,2))
         obs = np.vstack([obs[:, :2], ego_pos])
 
-        #obs = {"lidar": obs[:, :2], "ego": ego_pos}
+        obs = obs.flatten()
 
         return obs
 
