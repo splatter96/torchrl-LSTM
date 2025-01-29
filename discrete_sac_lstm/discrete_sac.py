@@ -21,6 +21,8 @@ import torch.cuda
 import tqdm
 from torchrl._utils import logger as torchrl_logger
 
+import wandb
+
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 
 from torchrl.record.loggers import generate_exp_name, get_logger
@@ -241,15 +243,19 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 metrics_to_log["eval/reward"] = eval_reward
                 metrics_to_log["eval/time"] = eval_time
 
-                # save and upload model
+                # save model
                 save_path = f"agent_{i}_{now_str()}"
                 torch.save(model[0].state_dict(), save_path)
-                artifact = wandb.Artifact(f"agent_{i}", type="model")
-                artifact.add_file(save_path)
-                wandb.run.log_artifact(artifact, type="model")
         if logger is not None:
             log_metrics(logger, metrics_to_log, collected_frames)
         sampling_start = time.time()
+
+    # save and upload model
+    save_path = f"agent_final_{now_str()}"
+    torch.save(model[0].state_dict(), save_path)
+    artifact = wandb.Artifact("agent", type="model")
+    artifact.add_file(save_path)
+    wandb.run.log_artifact(artifact, type="model")
 
     collector.shutdown()
     end_time = time.time()
