@@ -244,14 +244,14 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 metrics_to_log["eval/time"] = eval_time
 
                 # save model
-                save_path = f"agent_{i}_{now_str()}"
+                save_path = f"agent_{i}.pt"
                 torch.save(model[0].state_dict(), save_path)
         if logger is not None:
             log_metrics(logger, metrics_to_log, collected_frames)
         sampling_start = time.time()
 
     # save and upload model
-    save_path = f"agent_final_{now_str()}"
+    save_path = "agent_final.pt"
     torch.save(model[0].state_dict(), save_path)
     artifact = wandb.Artifact("agent", type="model")
     artifact.add_file(save_path)
