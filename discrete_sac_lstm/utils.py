@@ -763,13 +763,16 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         out_key="embedding",
         python_based=True,
     )
+    lstm = lstm.set_recurrent_mode()
+    lstm = torch.compile(lstm, mode="reduce-overhead")
 
     # Common feature extractor
     # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
-    feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+    # feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+    feature_extractor = TensorDictSequential(mlp_mod, lstm)
 
     # Non LSTM
-    #feature_extractor = TensorDictSequential(mlp_mod)
+    # feature_extractor = TensorDictSequential(mlp_mod)
 
     # TODO replace with MLP??
     # actor_seq = nn.Sequential(
