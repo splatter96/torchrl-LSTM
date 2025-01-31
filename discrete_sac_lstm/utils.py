@@ -76,6 +76,23 @@ import gymnasium as gym
 
 sys.path.append("./highway-env/")
 
+
+## Custom Loss Module
+class CustomDiscreteSACLoss(DiscreteSACLoss):
+    # override the default vmapped function
+    def _make_vmap(self):
+        def customvmap(td, params):
+            td_out = []
+
+            for p in params.unbind(0):
+                with p.to_module(self.qvalue_network):
+                    td_out.append(self.qvalue_network(td))
+
+            return torch.stack(td_out, 0)
+
+        self._vmap_qnetworkN0 = customvmap
+
+
 # ====================================================================
 # Environment utils
 # -----------------
@@ -761,10 +778,10 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         device=device,
         in_key="embedding",
         out_key="embedding",
-        python_based=True,
+        # python_based=True,
     )
     lstm = lstm.set_recurrent_mode()
-    lstm = torch.compile(lstm, mode="reduce-overhead")
+    # lstm = torch.compile(lstm, mode="reduce-overhead")
 
     # Common feature extractor
     # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
@@ -930,7 +947,8 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 def make_loss_module(cfg, model):
     """Make loss module and target network updater."""
     # Create discrete SAC loss
-    loss_module = DiscreteSACLoss(
+    # loss_module = DiscreteSACLoss(
+    loss_module = CustomDiscreteSACLoss(
         actor_network=model[0],
         qvalue_network=model[1],
         num_actions=model[0].spec["action"].space.n,

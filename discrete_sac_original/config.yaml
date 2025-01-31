@@ -46,7 +46,7 @@ network:
 
 # logging
 logger:
-  backend: wandb
+  backend: null
   project_name: torchrl_example_discrete_sac
   group_name: null
   exp_name: ${env.name}_DiscreteSAC

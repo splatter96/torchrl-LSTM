@@ -37,7 +37,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     model[0].load_state_dict(torch.load(cfg.eval.checkpoint, map_location=device))
 
     td = eval_env.reset()
-    for _ in range(100):
+    for _ in range(1000):
         action = model[0](td)
         td = eval_env.step(action)
         eval_env.env.render()
