@@ -149,6 +149,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
         # Optimization steps
         training_start = time.time()
+        loss_time = 0
         if collected_frames >= init_random_frames:
             (
                 actor_losses,
@@ -166,6 +167,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     sampled_tensordict = sampled_tensordict.clone()
 
                 # Compute loss
+                loss_start = time.time()
                 loss_out = loss_module(sampled_tensordict)
 
                 actor_loss, q_loss, alpha_loss = (
@@ -173,6 +175,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     loss_out["loss_qvalue"],
                     loss_out["loss_alpha"],
                 )
+                loss_time += time.time() - loss_start
 
                 # Update critic
                 optimizer_critic.zero_grad()
@@ -224,6 +227,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
             metrics_to_log["train/alpha_loss"] = np.mean(alpha_losses)
             metrics_to_log["train/sampling_time"] = sampling_time
             metrics_to_log["train/training_time"] = training_time
+            metrics_to_log["train/loss_time"] = loss_time
 
         # Evaluation
         prev_test_frame = ((i - 1) * frames_per_batch) // eval_iter

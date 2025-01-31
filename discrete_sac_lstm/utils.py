@@ -785,7 +785,7 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 
     # Common feature extractor
     # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
-    # feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+    #feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
     feature_extractor = TensorDictSequential(mlp_mod, lstm)
 
     # Non LSTM
