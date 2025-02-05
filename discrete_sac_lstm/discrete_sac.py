@@ -40,6 +40,7 @@ from utils import (
     make_sac_agent_original,
     make_sac_agent_niklas,
     make_sac_agent_new,
+    make_sac_agent_separat,
 )
 
 import datetime
@@ -92,7 +93,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
     # model = make_sac_agent(cfg, train_env, eval_env, device)
     # model = make_sac_agent_original(cfg, train_env, eval_env, device)
     # model = make_sac_agent_niklas(cfg, train_env, eval_env, device)
-    model = make_sac_agent_new(cfg, train_env, eval_env, device)
+    # model = make_sac_agent_new(cfg, train_env, eval_env, device)
+    model = make_sac_agent_separat(cfg, train_env, eval_env, device)
 
     # Create TD3 loss
     loss_module, target_net_updater = make_loss_module(cfg, model)

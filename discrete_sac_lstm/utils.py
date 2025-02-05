@@ -743,18 +743,119 @@ def make_sac_agent_niklas(cfg, train_env, eval_env, device):
     return model
 
 
+def make_sac_agent_separat(cfg, train_env, eval_env, device):
+    action_spec = train_env.action_spec
+    if train_env.batch_size:
+        action_spec = action_spec[(0,) * len(train_env.batch_size)]
+
+    in_keys = ["observation"]
+
+    hidden_size = 256
+
+    #####
+    ## ACTOR
+    #####
+    actor_module_1 = SafeModule(
+        module=MLP(
+            num_cells=cfg.network.hidden_sizes,
+            out_features=hidden_size,
+            activation_class=get_activation(cfg),
+        ),
+        in_keys=in_keys,
+        out_keys=["embedded"],
+    )
+
+    actor_module_2 = LSTMModule(
+        input_size=hidden_size,
+        hidden_size=hidden_size,
+        device=device,
+        in_key="embedded",
+        out_key="embedded_lstm",
+    )
+
+    train_env.append_transform(actor_module_2.make_tensordict_primer())
+    eval_env.append_transform(actor_module_2.make_tensordict_primer())
+
+    actor_module_3 = SafeModule(
+        module=MLP(
+            num_cells=cfg.network.hidden_sizes,
+            out_features=action_spec.shape[-1],
+            activation_class=get_activation(cfg),
+        ),
+        in_keys=["embedded_lstm"],
+        out_keys=["logits"],
+    )
+
+    actor1 = TensorDictSequential(
+        actor_module_1, actor_module_2.set_recurrent_mode(True), actor_module_3
+    )
+
+    actor = ProbabilisticActor(
+        spec=CompositeSpec(action=eval_env.action_spec),
+        module=actor1,
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=OneHotCategorical,
+        distribution_kwargs={},
+        default_interaction_type=InteractionType.RANDOM,
+        return_log_prob=False,
+    )
+
+    #####
+    ## CRITIC
+    #####
+    critic_module_1 = SafeModule(
+        module=MLP(
+            num_cells=cfg.network.hidden_sizes,
+            out_features=hidden_size,
+            activation_class=get_activation(cfg),
+        ),
+        in_keys=in_keys,
+        out_keys=["critic_embedded"],
+    )
+
+    critic_module_2 = LSTMModule(
+        input_size=hidden_size,
+        hidden_size=hidden_size,
+        device=device,
+        in_key="critic_embedded",
+        out_key="critic_embedded_lstm",
+    )
+
+    critic_module_3 = SafeModule(
+        module=MLP(
+            num_cells=cfg.network.hidden_sizes,
+            out_features=action_spec.shape[-1],
+            activation_class=get_activation(cfg),
+        ),
+        in_keys=["critic_embedded_lstm"],
+        out_keys=["action_value"],
+    )
+
+    critic = TensorDictSequential(
+        critic_module_1, critic_module_2.set_recurrent_mode(True), critic_module_3
+    )
+
+    #####
+    ## Final Model
+    #####
+    model = torch.nn.ModuleList([actor, critic]).to(device)
+
+    # init nets
+    with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
+        td = eval_env.reset()
+        td = td.to(device)
+        for net in model:
+            net(td)
+    del td
+    eval_env.close()
+
+    return model
+
+
 def make_sac_agent_new(cfg, train_env, eval_env, device):
     # Networks
-    # conv = ConvNet(
-    #     in_features=3,
-    #     num_cells=[32, 64, 256],  # TODO make parameters
-    #     squeeze_output=True,
-    #     aggregator_class=nn.AdaptiveAvgPool2d,
-    #     aggregator_kwargs={"output_size": (1, 1)},
-    #     device=device,
-    # )
-    # conv_mod = TensorDictModule(conv, in_keys=["pixels"], out_keys=["embedding"])
-    #
+
     action_spec = train_env.action_spec
     if train_env.batch_size:
         action_spec = action_spec[(0,) * len(train_env.batch_size)]
@@ -765,7 +866,6 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
         device=device,
         activation_class=get_activation(cfg),
     )
-    # mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
     mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
 
     # Get the number of cells in the last layer
@@ -785,7 +885,7 @@ def make_sac_agent_new(cfg, train_env, eval_env, device):
 
     # Common feature extractor
     # feature_extractor = TensorDictSequential(conv_mod, lstm.set_recurrent_mode())
-    #feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
+    # feature_extractor = TensorDictSequential(mlp_mod, lstm.set_recurrent_mode())
     feature_extractor = TensorDictSequential(mlp_mod, lstm)
 
     # Non LSTM
