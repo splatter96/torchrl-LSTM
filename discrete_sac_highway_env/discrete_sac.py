@@ -12,6 +12,7 @@ The helper functions are coded in the utils.py associated with this script.
 """
 
 import time
+import glob
 
 import hydra
 import numpy as np
@@ -21,6 +22,8 @@ import tqdm
 from torchrl._utils import logger as torchrl_logger
 
 from torchrl.envs.utils import ExplorationType, set_exploration_type
+from hydra.utils import to_absolute_path
+import omegaconf
 
 from torchrl.record.loggers import generate_exp_name, get_logger
 from utils import (
@@ -54,12 +57,34 @@ def main(cfg: "DictConfig"):  # noqa: F821
             logger_name="DiscreteSAC_logging",
             experiment_name=exp_name,
             wandb_kwargs={
-                "mode": cfg.logger.mode,
-                "config": dict(cfg),
+                "config": omegaconf.OmegaConf.to_container(
+                    cfg, resolve=True, throw_on_missing=True
+                ),
                 "project": cfg.logger.project_name,
-                "group": cfg.logger.group_name,
+                "save_code": True,
             },
         )
+
+    # log code to wandb
+    if cfg.logger.backend == "wandb":
+        import wandb
+
+        artifact = wandb.run.log_code(
+            f"{to_absolute_path('highway-env')}",
+            name="Simulation_Code",
+            include_fn=lambda path: path.endswith(".py")
+            or path.endswith(".pyx")
+            or path.endswith("c_utils.c"),
+        )
+        wandb.run.use_artifact(artifact, type="code")
+        artifact.wait()
+
+        artifact_training = wandb.Artifact("Training_Code", type="code")
+        artifact_training.add_file(f"{to_absolute_path('.')}/discrete_sac.py")
+        artifact_training.add_file(f"{to_absolute_path('.')}/utils.py")
+
+        wandb.run.use_artifact(artifact_training, type="code")
+        artifact_training.wait()
 
     # Set seeds
     torch.manual_seed(cfg.env.seed)
@@ -249,6 +274,13 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     save_path = "agent_final.pt"
     torch.save(model[0].state_dict(), save_path)
+
+    artifact_model = wandb.Artifact("Final_Model", type="model")
+    artifact_model.add_file(f"{to_absolute_path('.')}/agent_final.py")
+
+    wandb.run.use_artifact(artifact_model, type="model")
+    artifact_model.wait()
+
     collector.shutdown()
     if not eval_env.is_closed:
         eval_env.close()
