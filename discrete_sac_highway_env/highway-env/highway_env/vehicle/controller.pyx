@@ -226,7 +226,7 @@ class MDPVehicle(ControlledVehicle):
 
         # for interference calculation
         # Set the radar configuration of the TI USSR for the ego vehicle
-        self.dutycycle = 14 / 100  # [% / 100] dutycycle of the radar usage
+        self.dutycycle = 14. / 100.  # [% / 100] dutycycle of the radar usage
         self.dutycycle_offset = 0  # [ms] offset in milliseconds
         self.frame_time = 60. / 1000  # [ms] duration of one radar frame
 

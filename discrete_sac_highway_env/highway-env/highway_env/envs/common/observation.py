@@ -575,7 +575,7 @@ class LidarObservation(ObservationType):
         self.enable_interference = enable_interference
 
     def space(self) -> spaces.Space:
-        high = 1 if self.normalize else self.maximum_range
+        high = 2 if self.normalize else self.maximum_range
         # return spaces.Box(shape=(self.cells, 2), low=-high, high=high, dtype=np.float32)
         # return spaces.Box(shape=(self.cells+1, 2), low=-high, high=high, dtype=np.float32)
         # return spaces.Dict(
@@ -641,6 +641,7 @@ class LidarObservation(ObservationType):
             for frame_idx in range(self.radar_frames_per_timestep):
                 for _ in range(self.radar_steps_per_frame):
                     for v in self.env.road.vehicles:
+                        # print(v.dutycycle, v.dutycycle_offset, v.frame_time)
                         if v is not self.env.controlled_vehicles[0]:
                             if is_on(
                                 t2, ego_duty_cycle, ego_offset, self.ego_frametime
@@ -654,7 +655,6 @@ class LidarObservation(ObservationType):
                     t2 += 1 / self.radar_frequency
 
             # for frame in interferer_per_frame:
-            #     # print(frame)
             #     for veh_id in frame:
             #         if veh_id in obs[:, 2]:
             #             print(veh_id, end=",")

@@ -78,7 +78,8 @@ class Vehicle(object):
             np.random.normal(0, 14) / 1000
         )  # [ms] offset in milliseconds
         self.frame_time = (
-            np.maximum(np.random.normal(10, 3), 5) / 1000  # set a lower bound of atleast 5ms
+            np.maximum(np.random.normal(60, 3), 25)
+            / 1000  # set a lower bound of atleast 25ms
         )  # [ms] duration of one radar frame
 
     @classmethod
