@@ -108,12 +108,20 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
     sampling_start = time.time()
     for i, tensordict in enumerate(collector):
+	# update difficulty
+        if i == 500:
+            collector.env.config["traffic_density"] = 2
+        if i == 1000:
+            collector.env.config["traffic_density"] = 3
+
         sampling_time = time.time() - sampling_start
 
         # Update weights of the inference policy
         collector.update_policy_weights_()
 
         pbar.update(tensordict.numel())
+
+        #print(tensordict)
 
         tensordict = tensordict.reshape(-1)
         current_frames = tensordict.numel()
@@ -142,6 +150,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 # Compute loss
                 loss_out = loss_module(sampled_tensordict)
 
+                #print(loss_out)
+
                 actor_loss, q_loss, alpha_loss = (
                     loss_out["loss_actor"],
                     loss_out["loss_qvalue"],
@@ -151,12 +161,20 @@ def main(cfg: "DictConfig"):  # noqa: F821
                 # Update critic
                 optimizer_critic.zero_grad()
                 q_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    #loss_module.qvalue_network_params, cfg.optim.clipping_norm
+                    loss_module.parameters(), cfg.optim.clipping_norm
+                )  # clip gradients to help stabilise training
                 optimizer_critic.step()
                 q_losses.append(q_loss.item())
 
                 # Update actor
                 optimizer_actor.zero_grad()
                 actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    #loss_module.actor_network_params, cfg.optim.clipping_norm
+                    loss_module.parameters(), cfg.optim.clipping_norm
+                )  # clip gradients to help stabilise training
                 optimizer_actor.step()
 
                 actor_losses.append(actor_loss.item())
@@ -221,6 +239,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
             log_metrics(logger, metrics_to_log, collected_frames)
         sampling_start = time.time()
 
+    save_path = "agent_final.pt"
+    torch.save(model[0].state_dict(), save_path)
     collector.shutdown()
     if not eval_env.is_closed:
         eval_env.close()

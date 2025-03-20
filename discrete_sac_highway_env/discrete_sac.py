@@ -276,7 +276,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
     torch.save(model[0].state_dict(), save_path)
 
     artifact_model = wandb.Artifact("Final_Model", type="model")
-    artifact_model.add_file(f"{to_absolute_path('.')}/agent_final.py")
+    artifact_model.add_file(f"{to_absolute_path('.')}/agent_final.pt")
 
     wandb.run.use_artifact(artifact_model, type="model")
     artifact_model.wait()

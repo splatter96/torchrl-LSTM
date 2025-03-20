@@ -5,6 +5,7 @@
 import functools
 import tempfile
 from contextlib import nullcontext
+import sys
 
 import torch
 from tensordict.nn import InteractionType, TensorDictModule
@@ -29,7 +30,7 @@ from torchrl.envs import (
     StepCounter,
     TransformedEnv,
 )
-from torchrl.envs.libs.gym import GymEnv, set_gym_backend
+from torchrl.envs.libs.gym import GymEnv, GymWrapper, set_gym_backend
 from torchrl.envs.utils import ExplorationType, set_exploration_type
 from torchrl.modules import MLP, SafeModule
 from torchrl.modules.distributions import OneHotCategorical
@@ -39,6 +40,8 @@ from torchrl.objectives import SoftUpdate
 from torchrl.objectives.sac import DiscreteSACLoss
 from torchrl.record import VideoRecorder
 
+sys.path.append("./highway-env/")
+import gymnasium as gym
 
 # ====================================================================
 # Environment utils
@@ -78,32 +81,65 @@ def apply_env_transforms(env, max_episode_steps):
 
 def make_environment(cfg, logger=None):
     """Make environments for training and evaluation."""
-    maker = functools.partial(env_maker, cfg)
-    parallel_env = ParallelEnv(
-        cfg.collector.env_per_collector,
-        EnvCreator(maker),
-        serial_for_single=True,
-    )
-    parallel_env.set_seed(cfg.env.seed)
+    import highway_env
+
+    device = cfg.collector.device
+    if device in ("", None):
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
+
+    # train_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    pure_env = gym.make(cfg.env.name)
+    pure_env.config.update(cfg.env.config)
+    train_env = TransformedEnv(GymWrapper(pure_env, from_pixels=False, device=device))
+    train_env.set_seed(cfg.env.seed)
 
     train_env = apply_env_transforms(
-        parallel_env, max_episode_steps=cfg.env.max_episode_steps
+        train_env, max_episode_steps=cfg.env.max_episode_steps
     )
 
-    maker = functools.partial(env_maker, cfg, from_pixels=cfg.logger.video)
-    eval_env = TransformedEnv(
-        ParallelEnv(
-            cfg.collector.env_per_collector,
-            EnvCreator(maker),
-            serial_for_single=True,
-        ),
-        train_env.transform.clone(),
+    # eval_env = TransformedEnv(GymEnv("CartPole-v1", from_pixels=False, device=device))
+    pure_env = gym.make(cfg.env.name)
+    pure_env.config.update(cfg.env.config)
+    eval_env = TransformedEnv(GymWrapper(pure_env, from_pixels=False, device=device))
+    eval_env = apply_env_transforms(
+        eval_env, max_episode_steps=cfg.env.max_episode_steps
     )
+
     if cfg.logger.video:
         eval_env = eval_env.insert_transform(
             0, VideoRecorder(logger, tag="rendered", in_keys=["pixels"])
         )
     return train_env, eval_env
+
+    #maker = functools.partial(env_maker, cfg)
+    #parallel_env = ParallelEnv(
+        #cfg.collector.env_per_collector,
+        #EnvCreator(maker),
+        #serial_for_single=True,
+    #)
+    #parallel_env.set_seed(cfg.env.seed)
+#
+    #train_env = apply_env_transforms(
+        #parallel_env, max_episode_steps=cfg.env.max_episode_steps
+    #)
+#
+    #maker = functools.partial(env_maker, cfg, from_pixels=cfg.logger.video)
+    #eval_env = TransformedEnv(
+        #ParallelEnv(
+            #cfg.collector.env_per_collector,
+            #EnvCreator(maker),
+            #serial_for_single=True,
+        #),
+        #train_env.transform.clone(),
+    #)
+    #if cfg.logger.video:
+        #eval_env = eval_env.insert_transform(
+            #0, VideoRecorder(logger, tag="rendered", in_keys=["pixels"])
+        #)
+    #return train_env, eval_env
 
 
 # ====================================================================
@@ -137,7 +173,7 @@ def make_collector(cfg, train_env, actor_model_explore):
 def make_replay_buffer(
     batch_size,
     prb=False,
-    buffer_size=1000000,
+    buffer_size=500000,
     scratch_dir=None,
     device="cpu",
     prefetch=3,
@@ -193,6 +229,8 @@ def make_sac_agent(cfg, train_env, eval_env, device):
         "num_cells": cfg.network.hidden_sizes,
         "out_features": action_spec.shape[-1],
         "activation_class": get_activation(cfg),
+        #"activation_class": nn.Softmax,
+        #"activate_last_layer": True, 
     }
 
     actor_net = MLP(**actor_net_kwargs)
