@@ -575,7 +575,7 @@ class LidarObservation(ObservationType):
         self.enable_interference = enable_interference
 
     def space(self) -> spaces.Space:
-        high = 2 if self.normalize else self.maximum_range
+        high = 1 if self.normalize else self.maximum_range
         # return spaces.Box(shape=(self.cells, 2), low=-high, high=high, dtype=np.float32)
         # return spaces.Box(shape=(self.cells+1, 2), low=-high, high=high, dtype=np.float32)
         # return spaces.Dict(

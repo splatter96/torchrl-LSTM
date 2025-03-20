@@ -120,7 +120,7 @@ class AbstractEnv(gym.Env):
             "observation": {
                 # "type": "Kinematics"
                 "type": "LidarObservation",
-                "enable_interference": False,
+                "enable_interference": True,
             },
             "action": {"type": "DiscreteMetaAction"},
             "simulation_frequency": 15,  # [Hz]
