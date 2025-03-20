@@ -37,6 +37,9 @@ from utils import (
     make_sac_agent,
 )
 
+from distutils.dir_util import copy_tree
+from shutil import copy
+
 
 @hydra.main(version_base="1.1", config_path="", config_name="config")
 def main(cfg: "DictConfig"):  # noqa: F821
@@ -85,6 +88,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
         wandb.run.use_artifact(artifact_training, type="code")
         artifact_training.wait()
+
+    copy_tree(to_absolute_path("highway-env"), "configs/highway-env")
+    copy(to_absolute_path("config.yaml"), "configs")
+    # copy(__file__, "configs")
 
     # Set seeds
     torch.manual_seed(cfg.env.seed)
