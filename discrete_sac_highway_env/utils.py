@@ -32,7 +32,13 @@ from torchrl.envs import (
 )
 from torchrl.envs.libs.gym import GymEnv, GymWrapper, set_gym_backend
 from torchrl.envs.utils import ExplorationType, set_exploration_type
-from torchrl.modules import MLP, SafeModule
+from torchrl.modules import (
+    MLP,
+    SafeModule,
+    LSTMModule,
+    ActorValueOperator,
+)
+from tensordict.nn import TensorDictSequential
 from torchrl.modules.distributions import OneHotCategorical
 
 from torchrl.modules.tensordict_module.actors import ProbabilisticActor
@@ -43,6 +49,23 @@ from torchrl.record.recorder import PixelRenderTransform, VideoRecorder
 
 sys.path.append("./highway-env/")
 import gymnasium as gym
+
+
+## Custom Loss Module to use cuda based LSTM
+class CustomDiscreteSACLoss(DiscreteSACLoss):
+    # override the default vmapped function
+    def _make_vmap(self):
+        def customvmap(td, params):
+            td_out = []
+
+            for p in params.unbind(0):
+                with p.to_module(self.qvalue_network):
+                    td_out.append(self.qvalue_network(td))
+
+            return torch.stack(td_out, 0)
+
+        self._vmap_qnetworkN0 = customvmap
+
 
 # ====================================================================
 # Environment utils
@@ -217,6 +240,109 @@ def make_replay_buffer(
 # ====================================================================
 # Model
 # -----
+def make_sac_agent_lstm(cfg, train_env, eval_env, device):
+    # Networks
+    action_spec = train_env.action_spec
+    if train_env.batch_size:
+        action_spec = action_spec[(0,) * len(train_env.batch_size)]
+
+    mlp = MLP(
+        num_cells=cfg.network.hidden_sizes,
+        out_features=action_spec.shape[-1],
+        device=device,
+        activation_class=get_activation(cfg),
+    )
+    mlp_mod = TensorDictModule(mlp, in_keys=["observation"], out_keys=["embedding"])
+
+    # Get the number of cells in the last layer
+    n_cells = mlp_mod(train_env.reset().to(device))["embedding"].shape[-1]
+
+    lstm = LSTMModule(
+        input_size=n_cells,
+        hidden_size=256,
+        device=device,
+        in_key="embedding",
+        out_key="embedding",
+        # python_based=False,
+        python_based=True,
+    )
+    lstm = lstm.set_recurrent_mode()
+
+    # Common feature extractor
+    feature_extractor = TensorDictSequential(mlp_mod, lstm)
+
+    # Non LSTM
+    # feature_extractor = TensorDictSequential(mlp_mod)
+
+    actor_seq = MLP(
+        # out_features=2, num_cells=[64], device=device,
+        num_cells=cfg.network.hidden_sizes,
+        out_features=action_spec.shape[-1],
+        device=device,
+    )
+
+    actor_module = TensorDictModule(
+        # actor_seq, in_keys=["embedding"], out_keys=["loc", "scale"]
+        actor_seq,
+        in_keys=["embedding"],
+        out_keys=["logits"],
+    )
+
+    actor = ProbabilisticActor(
+        spec=CompositeSpec(action=eval_env.action_spec),
+        module=actor_module,
+        # in_keys=["loc", "scale"],
+        in_keys=["logits"],
+        out_keys=["action"],
+        distribution_class=OneHotCategorical,
+        distribution_kwargs={},
+        default_interaction_type=InteractionType.RANDOM,
+        return_log_prob=False,
+    )
+
+    qvalue_net_kwargs = {
+        "num_cells": cfg.network.hidden_sizes,
+        "out_features": action_spec.shape[-1],
+        "activation_class": get_activation(cfg),
+    }
+    qvalue_net = MLP(
+        **qvalue_net_kwargs,
+    )
+
+    qvalue = TensorDictModule(
+        in_keys=["embedding"],
+        out_keys=["action_value"],
+        module=qvalue_net.to(device),
+    )
+
+    # compile the nn modules
+    # actor_compile = torch.compile(actor)
+    # qvalue_compile = torch.compile(qvalue)
+    # feature_extractor_compile = torch.compile(feature_extractor)
+
+    ac_operator = ActorValueOperator(feature_extractor, actor, qvalue)
+    ac_operator.get_value_operator()(train_env.reset().to(device))
+
+    # Make policy aware of supplementary inputs and
+    # outputs during rollout execution.
+    train_env.append_transform(lstm.make_tensordict_primer())
+    eval_env.append_transform(lstm.make_tensordict_primer())
+
+    # Combine modules to actor critic model
+    model = torch.nn.ModuleList(
+        # [ac_operator.get_policy_operator(), ac_operator.get_critic_operator()]
+        [ac_operator.get_policy_operator(), ac_operator.get_value_operator()]
+    ).to(device)
+    # init nets
+    with torch.no_grad(), set_exploration_type(ExplorationType.RANDOM):
+        td = train_env.reset()
+        td = td.to(device)
+        for net in model:
+            net(td)
+    del td
+    eval_env.close()
+
+    return model
 
 
 def make_sac_agent(cfg, train_env, eval_env, device):

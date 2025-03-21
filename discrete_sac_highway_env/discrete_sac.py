@@ -35,6 +35,7 @@ from utils import (
     make_optimizer,
     make_replay_buffer,
     make_sac_agent,
+    make_sac_agent_lstm,
 )
 
 from distutils.dir_util import copy_tree
@@ -101,7 +102,10 @@ def main(cfg: "DictConfig"):  # noqa: F821
     train_env, eval_env = make_environment(cfg, logger=logger)
 
     # Create agent
-    model = make_sac_agent(cfg, train_env, eval_env, device)
+    if cfg.network.use_lstm:
+        model = make_sac_agent_lstm(cfg, train_env, eval_env, device)
+    else:
+        model = make_sac_agent(cfg, train_env, eval_env, device)
 
     # Create TD3 loss
     loss_module, target_net_updater = make_loss_module(cfg, model)
@@ -159,9 +163,13 @@ def main(cfg: "DictConfig"):  # noqa: F821
 
         pbar.update(tensordict.numel())
 
+        if cfg.network.use_lstm:
+            tensordict = tensordict.unsqueeze(0).to_tensordict()
+        else:
+            tensordict = tensordict.reshape(-1)
+
         # print(tensordict)
 
-        tensordict = tensordict.reshape(-1)
         current_frames = tensordict.numel()
         # Add to replay buffer
         replay_buffer.extend(tensordict.cpu())
@@ -184,6 +192,8 @@ def main(cfg: "DictConfig"):  # noqa: F821
                     )
                 else:
                     sampled_tensordict = sampled_tensordict.clone()
+
+                # print(sampled_tensordict)
 
                 # Compute loss
                 loss_out = loss_module(sampled_tensordict)
