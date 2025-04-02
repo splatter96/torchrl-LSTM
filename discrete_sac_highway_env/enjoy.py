@@ -23,6 +23,7 @@ from torchrl.envs.utils import ExplorationType, set_exploration_type
 from utils import (
     make_environment,
     make_sac_agent,
+    make_sac_agent_lstm,
 )
 
 import tqdm
@@ -48,7 +49,11 @@ def main(cfg: "DictConfig"):  # noqa: F821
     eval_env.auto_register_info_dict()
 
     # Create agent
-    model = make_sac_agent(cfg, train_env, eval_env, device)
+    # model = make_sac_agent(cfg, train_env, eval_env, device)
+    if cfg.network.use_lstm:
+        model = make_sac_agent_lstm(cfg, train_env, eval_env, device)
+    else:
+        model = make_sac_agent(cfg, train_env, eval_env, device)
 
     # load saved model
     model[0].load_state_dict(torch.load(cfg.eval.load_path, map_location=device))
@@ -84,7 +89,7 @@ def main(cfg: "DictConfig"):  # noqa: F821
         road_speed += td["next"]["average_road_speed"]
 
         pbar.update(1)
-        # time.sleep(0.01)
+        # time.sleep(0.03)
 
     eval_rollout_steps = cfg.eval.num_steps
     with set_exploration_type(ExplorationType.DETERMINISTIC), torch.no_grad():
